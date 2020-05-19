@@ -3,89 +3,79 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-# https://gist.github.com/jacobkimmel/4ccdc682a45662e514997f724297f39f
-def make_one_hot(labels, C=2):
-    '''
-    Converts an integer label torch.autograd.Variable to a one-hot Variable.
-    
-    Parameters
-    ----------
-    labels : torch.autograd.Variable of torch.cuda.LongTensor
-        N x C, where N is batch size. 
-        Each value is an integer representing correct classification.
-    C : integer. 
-        number of classes in labels.
-    
-    Returns
-    -------
-    target : torch.autograd.Variable of torch.cuda.FloatTensor
-        N x C, where C is class number. One-hot encoded.
-    '''
-    one_hot = torch.Tensor(labels.size(0), C).zero_().cuda()
-    target = one_hot.scatter_(1, labels.unsqueeze(1), 1)
-    
-    target = Variable(target)
-        
-    return target
+def _weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0)
 
 class Generator(nn.Module):
     def __init__(self):
         super().__init__()
     
         self.model = nn.Sequential(
-            nn.Linear(110, 256),
+            nn.ConvTranspose2d(100, 1024, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(1024),
             nn.ReLU(),
-            nn.Linear(256, 512),
+            nn.ConvTranspose2d(1024, 512, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(512),
             nn.ReLU(),
-            nn.Linear(512, 1024),
+            nn.ConvTranspose2d(512, 256, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.Linear(1024, 784),
+            nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),             
+            nn.ConvTranspose2d(128, 1, 4, 2, 1),
             nn.Tanh()
         ) 
+        self.apply(_weights_init)
 
-    def forward(self, z, y):
-        z = z.view(z.size(0), 100)
-        ret = torch.cat([z, y], 1)
-        ret = self.model(ret)
-        return ret.view(z.size(0), -1, 28, 28)
+    def forward(self, z):
+        z = z.view(z.size(0), 100, 1, 1)
+        ret = self.model(z)
+        return ret.view(z.size(0), -1, 64, 64)
          
 class Discriminator(nn.Module):
     def __init__(self):
         super().__init__()
 
         self.model = nn.Sequential(
-            nn.Linear(794, 1024),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(1024, 512),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256, 1),
+            nn.Conv2d(1, 128, 4, 2, 1, bias=False),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(128, 256, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(256, 512, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(512, 1024, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(1024, 1, 4, 1, 0, bias=False),
             nn.Sigmoid()
         )
+        self.apply(_weights_init)
 
-    def forward(self, x, y):
-        x = x.view(x.size(0), 784)
-        ret = torch.cat([x, y], 1)
-        ret = self.model(ret)
+    def forward(self, x):
+        x = x.view(x.size(0), 1, 64, 64)
+        ret = self.model(x)
+        ret = ret.view(ret.size(0), 1)
         return ret
 
 if __name__ == '__main__':
-    batch_size = 1
+    batch_size = 3
 
     generator = Generator()
     generator.cuda()
     noise = torch.rand(batch_size, 100).cuda()
-    label = torch.randint(10,(batch_size,)).cuda()
-    label_oh = make_one_hot(label, 10)
-    gen = generator(noise, label_oh)
+    gen = generator(noise)
     print(gen.shape)
 
     discriminator = Discriminator()
     discriminator.cuda()
-    image = torch.rand(batch_size, 1, 28, 28).cuda()
-    dis = discriminator(image, label_oh)
+    image = torch.rand(batch_size, 1, 64, 64).cuda()
+    dis = discriminator(image)
     print(dis.shape)
