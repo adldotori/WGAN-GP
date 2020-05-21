@@ -1,8 +1,11 @@
-# Conditional Generative Adversarial Nets
+# Deep Convolutional Generative Adversarial Nets
 
-> Conditional Generative Adversarial Nets   [[Paper Link](https://arxiv.org/pdf/1411.1784.pdf)]
+> Deep Convolutional Generative Adversarial Nets   [[Paper Link](https://arxiv.org/pdf/1511.06434.pdf)]
 
-**Pytorch implementation of conditional Generative Adversarial Networks**
+**Pytorch implementation of Deep Convolutional Generative Adversarial Networks**
 
 ## Result
+![image](result.gif)
+
+### Epoch 20
 ![image](result.png)

@@ -15,9 +15,9 @@ from dataloader import *
 def get_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--num-workers', type=int, default = 4)
-    parser.add_argument('-e', '--epoch', type=int, default=400)
-    parser.add_argument('-b', '--batch-size', type=int, default = 128)
-    parser.add_argument('-d', '--display-step', type=int, default = 1)
+    parser.add_argument('-e', '--epoch', type=int, default=20)
+    parser.add_argument('-b', '--batch-size', type=int, default = 100)
+    parser.add_argument('-d', '--display-step', type=int, default = 600)
     opt = parser.parse_args()
     return opt
 
@@ -50,6 +50,22 @@ def train(opt):
             image, label = train_data_loader.next_batch()
             image = image.cuda()
 
+            # train discriminator
+            optim_dis.zero_grad()
+
+            noise = Variable(torch.randn(opt.batch_size, 100)).cuda()
+            gen = generator(noise)
+
+            validity_real = discriminator(image)
+            loss_dis_real = loss(validity_real, Variable(torch.ones(opt.batch_size,1)).cuda())
+
+            validity_fake = discriminator(gen.detach())
+            loss_dis_fake = loss(validity_fake, Variable(torch.zeros(opt.batch_size,1)).cuda())
+
+            loss_dis = (loss_dis_real + loss_dis_fake) /2
+            loss_dis.backward()
+            optim_dis.step()
+
             # train generator
             generator.train()
             optim_gen.zero_grad()
@@ -62,19 +78,6 @@ def train(opt):
             loss_gen = loss(validity, Variable(torch.ones(opt.batch_size,1)).cuda())
             loss_gen.backward()
             optim_gen.step()
-            
-            # train discriminator
-            optim_dis.zero_grad()
-
-            validity_real = discriminator(image)
-            loss_dis_real = loss(validity_real, Variable(torch.ones(opt.batch_size,1)).cuda())
-
-            validity_fake = discriminator(gen.detach())
-            loss_dis_fake = loss(validity_fake, Variable(torch.zeros(opt.batch_size,1)).cuda())
-
-            loss_dis = loss_dis_real + loss_dis_fake
-            loss_dis.backward()
-            optim_dis.step()
 
             loss_tot = loss_gen + loss_dis
 
@@ -96,7 +99,7 @@ def train(opt):
                 grid = make_grid(sample_images, nrow=3, normalize=True)
                 writer.add_image('sample_image', grid, step)
 
-                torch.save(generator.state_dict(), 'checkpoint.pt')
+                torch.save(generator.state_dict(), 'checkpoint_{}.pt'.format(step))
 
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'

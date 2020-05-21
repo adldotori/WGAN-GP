@@ -5,6 +5,7 @@ import os
 import argparse
 import numpy as np
 from PIL import Image
+import imageio
 
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import make_grid
@@ -13,7 +14,7 @@ from model import *
 from loss import *
 from dataloader import *
 
-MAX_EPOCHS = 500
+torch.manual_seed(17)
 
 def get_opt():
     parser = argparse.ArgumentParser()
@@ -31,21 +32,22 @@ def imsave(result,path):
     Image.fromarray(img).save(path)
 
 def test(opt):
-    # Init Model
-    generator = Generator().cuda()
-    generator.load_state_dict(torch.load('checkpoint.pt'))
-    generator.train()
+    video = []
+    for i in range(20):
+        generator = Generator().cuda()
+        generator.load_state_dict(torch.load('checkpoint_{}.pt'.format((i+1) * 600)))
+        generator.train()
 
-    # Test
-    z = Variable(torch.randn(100, 100)).cuda()
-    label = np.repeat(np.array(range(10)), 10)
-    label = Variable(torch.LongTensor(label)).cuda()
-    label = make_one_hot(label, 10)
-    sample_images = generator(z, label)
-    grid = make_grid(sample_images, nrow=10, normalize=True)
-    imsave(grid, 'result.png')
+        # Test
+        z = Variable(torch.randn(100, 100)).cuda()
+        sample_images = generator(z)
+        grid = make_grid(sample_images, nrow=10, normalize=True)
+        imsave(grid, 'result.png')
+        video.append(imageio.imread('result.png'))
+
+    imageio.mimsave('result.gif', video, fps=3)
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
     opt = get_opt()
     test(opt)
