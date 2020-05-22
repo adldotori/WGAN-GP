@@ -73,12 +73,11 @@ def train(opt):
             grad_x_hat = grad(
                 outputs=hat_predict.sum(), inputs=x_hat, create_graph=True
             )[0]
-            grad_panelty = ((grad_x_hat.view(grad_x_hat.size(0), -1).norm(2, dim=1) - 1) ** 2).mean()
-            grad_panelty = 10 * grad_panelty
-            grad_panelty.backward()
-            # print(loss_dis_real, loss_dis_fake, grad_panelty)
+            grad_penalty = ((grad_x_hat.view(grad_x_hat.size(0), -1).norm(2, dim=1) - 1) ** 2).mean()
+            grad_penalty = 10 * grad_penalty
+            grad_penalty.backward()
             optim_dis.step()
-            loss_dis = -loss_dis_real + loss_dis_fake + grad_panelty
+            loss_dis = -loss_dis_real + loss_dis_fake + grad_penalty
 
             # train generator
             generator.train()
