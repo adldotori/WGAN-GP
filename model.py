@@ -55,7 +55,8 @@ class Discriminator(nn.Module):
             nn.BatchNorm2d(1024),
             nn.LeakyReLU(0.2),
             nn.Conv2d(1024, 1, 4, 1, 0, bias=False),
-            nn.Sigmoid()
+            # nn.ReLU()
+            # nn.Sigmoid()
         )
         self.apply(_weights_init)
 

@@ -7,15 +7,19 @@ import numpy as np
 
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import make_grid
+from torch.autograd import grad
 
 from model import *
-from loss import *
 from dataloader import *
+
+def requires_grad(model, flag=True):
+    for p in model.parameters():
+        p.requires_grad = flag
 
 def get_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--num-workers', type=int, default = 4)
-    parser.add_argument('-e', '--epoch', type=int, default=20)
+    parser.add_argument('-e', '--epoch', type=int, default=40)
     parser.add_argument('-b', '--batch-size', type=int, default = 100)
     parser.add_argument('-d', '--display-step', type=int, default = 600)
     opt = parser.parse_args()
@@ -35,11 +39,8 @@ def train(opt):
     # test_data_loader = MNISTDataloader('test', opt, test_dataset)
 
     # Set Optimizer
-    optim_gen = torch.optim.Adam(generator.parameters(), lr=0.0001)
-    optim_dis = torch.optim.Adam(discriminator.parameters(), lr=0.0001)
-
-    # Set Loss
-    loss = Loss()
+    optim_gen = torch.optim.Adam(generator.parameters(), lr=0.0002)
+    optim_dis = torch.optim.Adam(discriminator.parameters(), lr=0.0002)
 
     writer = SummaryWriter()
 
@@ -57,35 +58,49 @@ def train(opt):
             gen = generator(noise)
 
             validity_real = discriminator(image)
-            loss_dis_real = loss(validity_real, Variable(torch.ones(opt.batch_size,1)).cuda())
+            loss_dis_real = validity_real.mean()
+            (-loss_dis_real).backward()
 
             validity_fake = discriminator(gen.detach())
-            loss_dis_fake = loss(validity_fake, Variable(torch.zeros(opt.batch_size,1)).cuda())
+            loss_dis_fake = validity_fake.mean()
+            loss_dis_fake.backward()
 
-            loss_dis = (loss_dis_real + loss_dis_fake) /2
-            loss_dis.backward()
+            # gradient penalty
+            eps = torch.rand(opt.batch_size, 1, 1, 1).cuda()
+            x_hat = eps * image.data + (1 - eps) * gen.data
+            x_hat.requires_grad = True
+            hat_predict = discriminator(x_hat)
+            grad_x_hat = grad(
+                outputs=hat_predict.sum(), inputs=x_hat, create_graph=True
+            )[0]
+            grad_panelty = ((grad_x_hat.view(grad_x_hat.size(0), -1).norm(2, dim=1) - 1) ** 2).mean()
+            grad_panelty = 10 * grad_panelty
+            grad_panelty.backward()
+            # print(loss_dis_real, loss_dis_fake, grad_panelty)
             optim_dis.step()
+            loss_dis = -loss_dis_real + loss_dis_fake + grad_panelty
 
             # train generator
             generator.train()
             optim_gen.zero_grad()
 
+            requires_grad(generator, True)
+            requires_grad(discriminator, False)
+
             noise = Variable(torch.randn(opt.batch_size, 100)).cuda()
-            
+
             gen = generator(noise)
             validity = discriminator(gen)
-            
-            loss_gen = loss(validity, Variable(torch.ones(opt.batch_size,1)).cuda())
-            loss_gen.backward()
+            # print(validity)
+            loss_gen = validity.mean()
+            (-loss_gen).backward()
             optim_gen.step()
 
-            loss_tot = loss_gen + loss_dis
+            requires_grad(generator, False)
+            requires_grad(discriminator, True)
 
-            writer.add_scalar('loss/total', loss_tot, step)
-            writer.add_scalar('loss/gen', loss_gen, step)
-            writer.add_scalar('loss/dis', loss_dis, step)
-            writer.add_scalar('loss/dis_real', loss_dis_real, step)
-            writer.add_scalar('loss/dis_fake', loss_dis_fake, step)
+            writer.add_scalar('loss/gen/', loss_gen, step)
+            writer.add_scalar('loss/dis/', loss_dis, step)
             
             if step % opt.display_step == 0:
                 writer.add_images('image', image[0][0], step, dataformats="HW")

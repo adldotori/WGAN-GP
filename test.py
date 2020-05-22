@@ -33,7 +33,7 @@ def imsave(result,path):
 
 def test(opt):
     video = []
-    for i in range(20):
+    for i in range(33):
         generator = Generator().cuda()
         generator.load_state_dict(torch.load('checkpoint_{}.pt'.format((i+1) * 600)))
         generator.train()

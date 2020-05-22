@@ -11,14 +11,14 @@ class MNISTDataset(data.Dataset):
     def __init__(self, mode):
         super(MNISTDataset, self).__init__()
         if mode == 'train':
-            self.dataset = datasets.MNIST('../data', train=True, download=True,
+            self.dataset = datasets.MNIST('.', train=True, download=True,
                         transform=transforms.Compose([
                             transforms.Resize(64),
                             transforms.ToTensor(),
                             transforms.Normalize(mean=(0.5,), std=(0.5,))
                         ]))
         else:
-            self.dataset = datasets.MNIST('../data', train=False, download=True,
+            self.dataset = datasets.MNIST('.', train=False, download=True,
                         transform=transforms.Compose([
                             transforms.Resize(64),
                             transforms.ToTensor(),
